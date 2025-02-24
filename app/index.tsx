@@ -45,6 +45,7 @@ export default function MapScreen() {
                 onRegionChangeComplete={(newRegion) => setRegion(newRegion)}
                 showsUserLocation={true}
                 showsMyLocationButton={true}
+                userInterfaceStyle={"dark"}
             >
                 {location && <Marker coordinate={location} title="Your Location" />}
             </MapView>
