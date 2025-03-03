@@ -7,9 +7,16 @@ export default function ReportScreen() {
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [image, setImage] = useState(null);
 
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  const takePhoto = async () => {
+    // Request camera permissions
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera permissions to take a picture!');
+      return;
+    }
+
+    // Launch the camera to capture a new photo
+    let result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
@@ -21,7 +28,7 @@ export default function ReportScreen() {
   };
 
   const handleSubmit = () => {
-    // Here you can handle form submission, e.g., sending data to a server.
+    // Handle form submission, e.g., sending data to a server.
     console.log({ crowdLevel, additionalInfo, image });
   };
 
@@ -58,8 +65,8 @@ export default function ReportScreen() {
         onChangeText={setAdditionalInfo}
       />
 
-      <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-        <Text style={styles.buttonText}>Add Photo</Text>
+      <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+        <Text style={styles.buttonText}>Take Photo</Text>
       </TouchableOpacity>
       {image && <Image source={{ uri: image }} style={styles.image} />}
 
@@ -71,7 +78,6 @@ export default function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Merged/updated styles combining the original snippet and new UI styles
   container: {
     flex: 1,
     padding: 20,
