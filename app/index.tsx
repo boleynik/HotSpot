@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import MapView, {Marker, MarkerAnimated} from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 // Approximated center for Penn State's campus
@@ -18,16 +18,13 @@ export default function MapScreen() {
 
     useEffect(() => {
         (async () => {
-            // Request permission to access location
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 setErrorMsg('Permission to access location was denied');
                 return;
             }
-            // Get current location
             const currentLocation = await Location.getCurrentPositionAsync({});
             setLocation(currentLocation.coords);
-            // Optionally update the map region to center on the user's location
             setRegion({
                 ...region,
                 latitude: currentLocation.coords.latitude,
@@ -45,17 +42,26 @@ export default function MapScreen() {
                 onRegionChangeComplete={(newRegion) => setRegion(newRegion)}
                 showsUserLocation={true}
                 showsMyLocationButton={true}
-                userInterfaceStyle={"dark"}
+                userInterfaceStyle="dark"
             >
                 {location && <Marker coordinate={location} title="Your Location" />}
-
             </MapView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    map: { flex: 1 },
-    errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
+    container: {
+        flex: 1,
+    },
+    map: {
+        flex: 1,
+        width: '100%',
+        height: '100%',
+    },
+    errorText: {
+        color: 'red',
+        textAlign: 'center',
+        marginTop: 20,
+    },
 });
