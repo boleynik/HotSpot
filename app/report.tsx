@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ReportScreen() {
@@ -8,14 +8,12 @@ export default function ReportScreen() {
   const [image, setImage] = useState(null);
 
   const takePhoto = async () => {
-    // Request camera permissions
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       alert('Sorry, we need camera permissions to take a picture!');
       return;
     }
 
-    // Launch the camera to capture a new photo
     let result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
@@ -28,59 +26,74 @@ export default function ReportScreen() {
   };
 
   const handleSubmit = () => {
-    // Handle form submission, e.g., sending data to a server.
     console.log({ crowdLevel, additionalInfo, image });
   };
 
+  const handleCrowdLevelPress = (level) => {
+    setCrowdLevel(crowdLevel === level ? null : level);
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Report Screen</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Report Screen</Text>
 
-      <Text style={styles.subHeader}>How crowded is this location?</Text>
-      <TouchableOpacity
-        style={[styles.button, crowdLevel === 'not crowded' && styles.selected]}
-        onPress={() => setCrowdLevel('not crowded')}
-      >
-        <Text style={styles.buttonText}>Not Crowded</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, crowdLevel === 'somewhat crowded' && styles.selected]}
-        onPress={() => setCrowdLevel('somewhat crowded')}
-      >
-        <Text style={styles.buttonText}>Somewhat Crowded</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, crowdLevel === 'very crowded' && styles.selected]}
-        onPress={() => setCrowdLevel('very crowded')}
-      >
-        <Text style={styles.buttonText}>Very Crowded</Text>
-      </TouchableOpacity>
+          <Text style={styles.subHeader}>How crowded is this location?</Text>
+          <TouchableOpacity
+            style={[styles.button, crowdLevel === 'not crowded' && styles.selected]}
+            onPress={() => handleCrowdLevelPress('not crowded')}
+          >
+            <Text style={styles.buttonText}>Not Crowded</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, crowdLevel === 'somewhat crowded' && styles.selected]}
+            onPress={() => handleCrowdLevelPress('somewhat crowded')}
+          >
+            <Text style={styles.buttonText}>Somewhat Crowded</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, crowdLevel === 'very crowded' && styles.selected]}
+            onPress={() => handleCrowdLevelPress('very crowded')}
+          >
+            <Text style={styles.buttonText}>Very Crowded</Text>
+          </TouchableOpacity>
 
-      <Text style={styles.subHeader}>Additional Info:</Text>
-      <TextInput
-        style={[styles.input, { fontFamily: 'Actor' }]}
-        placeholder="Enter additional info"
-        value={additionalInfo}
-        onChangeText={setAdditionalInfo}
-      />
+          {/* Added extra margin to separate the additional info section */}
+          <View style={styles.additionalInfoContainer}>
+            <Text style={styles.subHeader}>Additional Info:</Text>
+            <TextInput
+              style={[styles.input, { fontFamily: 'Actor' }]}
+              placeholder="Further Comments..."
+              placeholderTextColor="#888"
+              value={additionalInfo}
+              onChangeText={setAdditionalInfo}
+              blurOnSubmit={true}
+            />
+          </View>
 
-      <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-        <Text style={styles.buttonText}>Take Photo</Text>
-      </TouchableOpacity>
-      {image && <Image source={{ uri: image }} style={styles.image} />}
+          <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+            <Text style={styles.buttonText}>Take Photo</Text>
+          </TouchableOpacity>
+          {image && <Image source={{ uri: image }} style={styles.image} />}
 
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>Submit</Text>
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <Text style={styles.submitText}>Submit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#333',
+  },
+  content: {
+    padding: 20,
+    marginTop: 70, // Moves the entire content down
   },
   title: {
     fontSize: 22,
@@ -110,6 +123,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     fontFamily: 'Actor'
+  },
+  additionalInfoContainer: {
+    marginTop: 30,
   },
   input: {
     backgroundColor: '#fff',
