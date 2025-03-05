@@ -34,7 +34,6 @@ export default function ReportScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Original snippet header */}
       <Text style={styles.title}>Report Screen</Text>
 
       <Text style={styles.subHeader}>How crowded is this location?</Text>
@@ -59,7 +58,7 @@ export default function ReportScreen() {
 
       <Text style={styles.subHeader}>Additional Info:</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { fontFamily: 'Actor' }]}
         placeholder="Enter additional info"
         value={additionalInfo}
         onChangeText={setAdditionalInfo}
@@ -89,56 +88,59 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 15,
     textAlign: 'center',
+    fontFamily: 'Actor'
   },
   subHeader: {
     fontSize: 16,
     color: '#bbb',
-    marginBottom: 10
+    marginBottom: 10,
+    fontFamily: 'Actor'
   },
   button: {
     backgroundColor: '#444',
     padding: 15,
     borderRadius: 10,
-    marginBottom: 10
+    marginBottom: 10,
   },
   selected: {
-    backgroundColor: '#666'
+    backgroundColor: '#FF9B62'
   },
   buttonText: {
     color: '#fff',
     textAlign: 'center',
-    fontSize: 16
+    fontSize: 16,
+    fontFamily: 'Actor'
   },
   input: {
     backgroundColor: '#fff',
     padding: 10,
     borderRadius: 5,
-    marginBottom: 10
+    marginBottom: 10,
+    fontFamily: 'Actor'
   },
   imageButton: {
     backgroundColor: '#555',
     padding: 15,
     borderRadius: 10,
-    marginBottom: 10
+    marginBottom: 10,
   },
   image: {
     width: 100,
     height: 100,
     borderRadius: 10,
     alignSelf: 'center',
-    marginTop: 10
+    marginTop: 10,
   },
   submitButton: {
     backgroundColor: '#888',
     padding: 15,
     borderRadius: 10,
-    marginTop: 10
+    marginTop: 10,
   },
   submitText: {
     color: '#fff',
     textAlign: 'center',
-    fontSize: 18
+    fontSize: 18,
+    fontFamily: 'Actor'
   },
-
-
 });
