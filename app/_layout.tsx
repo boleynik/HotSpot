@@ -1,57 +1,20 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
+import { Redirect, Stack } from 'expo-router';
+import auth from '@react-native-firebase/auth';
 
 export default function Layout() {
-    return (
-        <Tabs
-            screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused, color, size }) => {
-                    let iconName: string;
-                    switch (route.name) {
-                        case 'report':
-                            iconName = focused ? 'warning' : 'warning-outline';
-                            break;
-                        case 'index': // Map screen
-                            iconName = focused ? 'map' : 'map-outline';
-                            break;
-                        case 'filter':
-                            iconName = focused ? 'filter' : 'filter-outline';
-                            break;
-                        default:
-                            iconName = 'ellipse';
-                    }
-                    return <Ionicons name={iconName} size={size} color={color} />;
-                },
-                tabBarStyle: {
-                    position: 'absolute',
-                    bottom: 30,
-                    width: 300,
-                    height: 60,
-                    borderRadius: 80,
-                    backgroundColor: '#FF9B62',
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-                    // Center horizontally
-                    left: '50%',
-                    transform: [{ translateX: +50 }],
+    useEffect(() => {
+        const unsubscribe = auth().onAuthStateChanged((currentUser) => {
+            setUser(currentUser);
+            setLoading(false);
+        });
+        return unsubscribe;
+    }, []);
 
-                    // Shadow
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 4,
-                    elevation: 8,
+    if (loading) return null;
 
-                    // Text
-
-                },
-                tabBarActiveTintColor: '#111',
-                tabBarInactiveTintColor: '#555',
-                headerShown: false,
-            })}
-        >
-            <Tabs.Screen name="report" options={{ title: 'Report' }} />
-            <Tabs.Screen name="index" options={{ title: 'Map' }} />
-            <Tabs.Screen name="filter" options={{ title: 'Filter' }} />
-        </Tabs>
-    );
+    return user ? <Redirect href="/home" /> : <Redirect href="/login" />;
 }
