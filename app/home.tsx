@@ -1,12 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function HomeLayout() {
+export default function Home() {
     return (
         <Tabs
             screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
-                    let iconName: string;
+                    let iconName;
                     switch (route.name) {
                         case 'report':
                             iconName = focused ? 'warning' : 'warning-outline';

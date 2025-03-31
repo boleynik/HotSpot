@@ -8,9 +8,8 @@ export default function LoginScreen() {
     const router = useRouter();
 
     const handleLogin = () => {
-        // Add authentication logic here
-        console.log('Logging in with:', email, password);
-        router.replace('/index'); // Navigate to the main page after login
+        // Navigate to the home screen after login
+        router.replace('/home');
     };
 
     return (
@@ -33,9 +32,6 @@ export default function LoginScreen() {
             />
             <TouchableOpacity style={styles.button} onPress={handleLogin}>
                 <Text style={styles.buttonText}>Sign In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/register')}>
-                <Text style={styles.registerText}>Don't have an account? Sign up</Text>
             </TouchableOpacity>
         </View>
     );
@@ -74,10 +70,5 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
-    },
-    registerText: {
-        marginTop: 15,
-        color: '#FF9B62',
-        fontSize: 16,
     },
 });
