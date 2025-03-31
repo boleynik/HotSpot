@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function Layout() {
+export default function HomeLayout() {
     return (
         <Tabs
             screenOptions={({ route }) => ({
@@ -29,20 +29,13 @@ export default function Layout() {
                     height: 60,
                     borderRadius: 80,
                     backgroundColor: '#FF9B62',
-
-                    // Center horizontally
                     left: '50%',
                     transform: [{ translateX: +50 }],
-
-                    // Shadow
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.3,
                     shadowRadius: 4,
                     elevation: 8,
-
-                    // Text
-
                 },
                 tabBarActiveTintColor: '#111',
                 tabBarInactiveTintColor: '#555',
