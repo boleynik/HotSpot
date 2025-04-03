@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/config/firebaseConfig.js'; // Adjust the path to your firebase config
+
+// Reanimated Bottom Sheet (Filter overlay remains as your existing code)
+import BottomSheet from '@gorhom/bottom-sheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Approximated center for Penn State's campus
 const PSU_REGION = {
@@ -11,14 +17,27 @@ const PSU_REGION = {
     longitudeDelta: 0.02,
 };
 
+const { width } = Dimensions.get('window');
+
+// Map crowd level to marker color
+const crowdColors = {
+    0: 'green',
+    1: 'yellow',
+    2: 'red',
+};
+
 export default function MapScreen() {
     const [location, setLocation] = useState(null);
     const [errorMsg, setErrorMsg] = useState(null);
     const [region, setRegion] = useState(PSU_REGION);
-
-    // Controls the visibility of the filter menu
+    const [locations, setLocations] = useState([]);
     const [showFilter, setShowFilter] = useState(false);
 
+    // BottomSheet ref and snap points (for your filter overlay)
+    const bottomSheetRef = useRef<BottomSheet>(null);
+    const snapPoints = useMemo(() => ['40%', '80%'], []);
+
+    // Request location permissions and update region/user location
     useEffect(() => {
         (async () => {
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -28,108 +47,145 @@ export default function MapScreen() {
             }
             const currentLocation = await Location.getCurrentPositionAsync({});
             setLocation(currentLocation.coords);
-            setRegion({
-                ...region,
+            setRegion((prev) => ({
+                ...prev,
                 latitude: currentLocation.coords.latitude,
                 longitude: currentLocation.coords.longitude,
-            });
+            }));
         })();
     }, []);
 
-    // Toggle the filter overlay
+    // Listen for changes in the "locations" collection (Realtime updates)
+    useEffect(() => {
+        const unsubscribe = onSnapshot(collection(db, 'locations'), (querySnapshot) => {
+            const locs = querySnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setLocations(locs);
+        }, (error) => {
+            console.error("Error fetching locations:", error);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Toggle the filter overlay (your existing implementation)
     const toggleFilter = () => {
-        setShowFilter(!showFilter);
+        setShowFilter((prev) => !prev);
+    };
+
+    // For debugging: function to open the bottom sheet (if using reanimated bottom sheet)
+    const openFilterSheet = useCallback(() => {
+        bottomSheetRef.current?.snapToIndex(0);
+    }, []);
+
+    const closeFilterSheet = () => {
+        bottomSheetRef.current?.close();
     };
 
     return (
-        <View style={styles.container}>
-            {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <View style={styles.container}>
+                {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
-            {/* Map */}
-            <MapView
-                style={styles.map}
-                region={region}
-                onRegionChangeComplete={(newRegion) => setRegion(newRegion)}
-                showsUserLocation={true}
-                showsMyLocationButton={true}
-                userInterfaceStyle="dark"
-            >
-                {location && <Marker coordinate={location} title="Your Location" />}
-            </MapView>
+                {/* Map covering the full screen */}
+                <MapView
+                    style={StyleSheet.absoluteFillObject}
+                    region={region}
+                    onRegionChangeComplete={(newRegion) => setRegion(newRegion)}
+                    showsUserLocation={true}
+                    showsMyLocationButton={true}
+                    userInterfaceStyle="dark"
+                >
+                    {/* User's current location marker */}
+                    {location && <Marker coordinate={location} title="Your Location" />}
 
-            {/* Top-right "Filter" button */}
-            <TouchableOpacity style={styles.filterButton} onPress={toggleFilter}>
-                <Text style={styles.filterButtonText}>Filter</Text>
-            </TouchableOpacity>
+                    {/* Markers from Firestore "locations" collection */}
+                    {locations.map((loc) => (
+                        <Marker
+                            key={loc.id}
+                            coordinate={{
+                                latitude: loc.coordinates.latitude,
+                                longitude: loc.coordinates.longitude,
+                            }}
+                            pinColor={crowdColors[loc.crowdLevel] || 'gray'}
+                        >
+                            <Callout>
+                                <Text>{loc.name}</Text>
+                            </Callout>
+                        </Marker>
+                    ))}
+                </MapView>
 
-            {/* Overlay + bottom sheet filter menu */}
-            {showFilter && (
-                <View style={styles.overlay}>
-                    <View style={styles.filterContainer}>
-                        <Text style={styles.filterTitle}>Filter Menu</Text>
+                {/* Top-right "Filter" button (to toggle overlay) */}
+                <TouchableOpacity style={styles.filterButton} onPress={toggleFilter}>
+                    <Text style={styles.filterButtonText}>Filter</Text>
+                </TouchableOpacity>
 
-                        <Text style={styles.sectionTitle}>crowd level</Text>
-                        <View style={styles.row}>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>not crowded</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>somewhat crowded</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>very crowded</Text>
+                {/* Filter Overlay (existing implementation) */}
+                {showFilter && (
+                    <View style={styles.overlay}>
+                        <View style={styles.filterContainer}>
+                            <Text style={styles.filterTitle}>Filter Menu</Text>
+
+                            <Text style={styles.sectionTitle}>Crowd Level</Text>
+                            <View style={styles.row}>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Not Crowded</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Somewhat Crowded</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Very Crowded</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.sectionTitle}>Location Type</Text>
+                            <View style={styles.row}>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Gym Space</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Study Space</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.filterOption}>
+                                    <Text>Dining Space</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.row}>
+                                <TouchableOpacity style={[styles.filterOption, styles.unselect]}>
+                                    <Text>Un-select All</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.filterOption, styles.apply]}>
+                                    <Text style={{ color: '#fff' }}>Apply</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Close button for filter overlay */}
+                            <TouchableOpacity style={styles.closeButton} onPress={toggleFilter}>
+                                <Text style={{ color: '#fff' }}>X</Text>
                             </TouchableOpacity>
                         </View>
-
-                        <Text style={styles.sectionTitle}>location type</Text>
-                        <View style={styles.row}>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>gym space</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>study space</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.filterOption}>
-                                <Text>dining space</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Example row with "un-select all" and "apply" */}
-                        <View style={styles.row}>
-                            <TouchableOpacity style={[styles.filterOption, styles.unselect]}>
-                                <Text>un-select all</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.filterOption, styles.apply]}>
-                                <Text style={{ color: '#fff' }}>apply</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Close button (top-right "X") */}
-                        <TouchableOpacity style={styles.closeButton} onPress={toggleFilter}>
-                            <Text style={{ color: '#fff' }}>X</Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
-            )}
-        </View>
+                )}
+            </View>
+        </GestureHandlerRootView>
     );
 }
 
-// Styles
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    map: {
-        flex: 1,
-        width: '100%',
-        height: '100%',
-    },
     errorText: {
         color: 'red',
         textAlign: 'center',
         marginTop: 20,
     },
-
-    // The button that opens the filter menu
+    map: {
+        flex: 1,
+    },
+    // Filter Button Styles
     filterButton: {
         position: 'absolute',
         top: 50,
@@ -143,15 +199,13 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-
-    // Overlay dims the background map
+    // Overlay for filter menu
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'flex-end',
     },
-
-    // The bottom sheet container
+    // Filter Container (bottom sheet-like overlay)
     filterContainer: {
         backgroundColor: '#F8B36C',
         borderTopLeftRadius: 40,
