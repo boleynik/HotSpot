@@ -1,21 +1,111 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Animated, Keyboard, TouchableWithoutFeedback, View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db } from '../config/firebaseConfig'; // Adjust path accordingly
+
+// Helper function to calculate distance between two coordinates in meters (Haversine formula)
+function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371000; // Radius of the earth in meters
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  ;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in meters
+  return d;
+}
+
+function deg2rad(deg: number) {
+  return deg * (Math.PI / 180);
+}
+
+// Helper function to upload an image to Firebase Storage
+async function uploadImageAsync(uri: string) {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  const filename = uri.split('/').pop();
+  const storage = getStorage();
+  const storageRef = ref(storage, `reports/${filename}`);
+  await uploadBytes(storageRef, blob);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
 
 export default function ReportScreen() {
-  const [crowdLevel, setCrowdLevel] = useState(null);
+  // Report input states
+  const [crowdLevel, setCrowdLevel] = useState<string | null>(null);
   const [additionalInfo, setAdditionalInfo] = useState('');
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState<string | null>(null);
   const [notificationVisible, setNotificationVisible] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = React.useRef(new Animated.Value(1)).current;
 
+  // New state: store the title based on the closest location
+  const [closestLocationName, setClosestLocationName] = useState<string>('Report');
+
+  // State to hold user's current location (for closest calculation)
+  const [currentLocation, setCurrentLocation] = useState<Location.LocationObjectCoords | null>(null);
+
+  // Request user location and determine closest location from Firestore
+  useEffect(() => {
+    (async () => {
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+      const locResult = await Location.getCurrentPositionAsync({});
+      setCurrentLocation(locResult.coords);
+
+      // Inside your useEffect for fetching locations:
+      try {
+        const querySnapshot = await getDocs(collection(db, 'locations'));
+        let closest = null;
+        let minDistance = Infinity;
+
+        querySnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          // Destructure the GeoPoint properties instead of treating coordinates as an array.
+          const { latitude: lat, longitude: lon } = data.coordinates;
+          if (locResult.coords && lat != null && lon != null) {
+            const distance = getDistanceFromLatLonInMeters(
+                locResult.coords.latitude,
+                locResult.coords.longitude,
+                lat,
+                lon
+            );
+            if (distance < minDistance) {
+              minDistance = distance;
+              closest = data.name;
+            }
+          }
+        });
+
+        if (closest) {
+          setClosestLocationName(`Report: ${closest}`);
+        } else {
+          setClosestLocationName('Report');
+        }
+      } catch (error) {
+        console.error("Error fetching locations: ", error);
+      }
+
+    })();
+  }, []);
+
+  // Handle photo capture using expo-image-picker
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       alert('Sorry, we need camera permissions to take a picture!');
       return;
     }
-
     let result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
@@ -28,110 +118,132 @@ export default function ReportScreen() {
     }
   };
 
-  const handleSubmit = () => {
-    console.log({ crowdLevel, additionalInfo, image });
-    setNotificationVisible(true);
-    fadeAnim.setValue(1);
-    // Wait 2 seconds, then fade out over 500ms
-    setTimeout(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        setNotificationVisible(false);
+  // Handle submission: upload image and create a report document in Firestore
+  const handleSubmit = async () => {
+    try {
+      let photoUrl = '';
+      if (image) {
+        photoUrl = await uploadImageAsync(image);
+      }
+      await addDoc(collection(db, "reports"), {
+        crowdLevel,
+        additionalInfo,
+        photoUrl,
+        timestamp: serverTimestamp(),
+        // Optionally add currentLocation, userId, locationRef, etc.
       });
-    }, 2000);
+      console.log("Report submitted successfully!");
+      setNotificationVisible(true);
+      fadeAnim.setValue(1);
+      setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start(() => {
+          setNotificationVisible(false);
+        });
+      }, 2000);
+      // Clear the fields
+      setCrowdLevel(null);
+      setAdditionalInfo('');
+      setImage(null);
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      alert("There was an error submitting your report. Please try again.");
+    }
   };
 
-  const handleCrowdLevelPress = (level) => {
+  const handleCrowdLevelPress = (level: string) => {
     setCrowdLevel(crowdLevel === level ? null : level);
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Report Screen</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.container}>
+          <View style={styles.content}>
+            {/* Title includes the closest location name */}
+            <Text style={styles.title}>{closestLocationName}</Text>
 
-          {/* Crowd Container */}
-          <View style={styles.crowdContainer}>
-            <Text style={styles.subHeader}>How crowded is this location?</Text>
-            <TouchableOpacity
-              style={[styles.button, crowdLevel === 'not crowded' && styles.selected]}
-              onPress={() => handleCrowdLevelPress('not crowded')}
-            >
-              <Text style={styles.buttonText}>Not Crowded</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, crowdLevel === 'somewhat crowded' && styles.selected]}
-              onPress={() => handleCrowdLevelPress('somewhat crowded')}
-            >
-              <Text style={styles.buttonText}>Somewhat Crowded</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, crowdLevel === 'very crowded' && styles.selected]}
-              onPress={() => handleCrowdLevelPress('very crowded')}
-            >
-              <Text style={styles.buttonText}>Very Crowded</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Additional Info Section */}
-          <View style={styles.additionalInfoContainer}>
-            <Text style={styles.subHeader}>Additional Info:</Text>
-            <TextInput
-              style={[styles.input, { fontFamily: 'Actor' }]}
-              placeholder="Further Comments"
-              placeholderTextColor="#888"
-              value={additionalInfo}
-              onChangeText={setAdditionalInfo}
-              blurOnSubmit={true}
-            />
-          </View>
-
-          {/* Photo Button */}
-          {!image ? (
-            <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-              <Text style={styles.buttonText}>Take Photo</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.photoContainer}>
-              <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-                <Text style={styles.buttonText}>Your Photo</Text>
+            {/* Crowd Level Selection */}
+            <View style={styles.crowdContainer}>
+              <Text style={styles.subHeader}>How crowded is this location?</Text>
+              <TouchableOpacity
+                  style={[styles.button, crowdLevel === 'not crowded' && styles.selected]}
+                  onPress={() => handleCrowdLevelPress('not crowded')}
+              >
+                <Text style={styles.buttonText}>Not Crowded</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteButton} onPress={() => setImage(null)}>
-                <Text style={styles.deleteText}>X</Text>
+              <TouchableOpacity
+                  style={[styles.button, crowdLevel === 'somewhat crowded' && styles.selected]}
+                  onPress={() => handleCrowdLevelPress('somewhat crowded')}
+              >
+                <Text style={styles.buttonText}>Somewhat Crowded</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                  style={[styles.button, crowdLevel === 'very crowded' && styles.selected]}
+                  onPress={() => handleCrowdLevelPress('very crowded')}
+              >
+                <Text style={styles.buttonText}>Very Crowded</Text>
               </TouchableOpacity>
             </View>
-          )}
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              !crowdLevel && styles.disabledButton, // Disable when no crowd level is selected
-              { elevation: 5, shadowColor: '#000' }, // Raised button effect
-            ]}
-            onPress={handleSubmit}
-            disabled={!crowdLevel}
-            activeOpacity={0.8} // Smooth touch effect
-          >
-            <Text style={styles.submitText}>Submit</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Additional Information Input */}
+            <View style={styles.additionalInfoContainer}>
+              <Text style={styles.subHeader}>Additional Info:</Text>
+              <TextInput
+                  style={[styles.input, { fontFamily: 'Actor' }]}
+                  placeholder="Further Comments"
+                  placeholderTextColor="#888"
+                  value={additionalInfo}
+                  onChangeText={setAdditionalInfo}
+                  blurOnSubmit={true}
+              />
+            </View>
 
-        {notificationVisible && (
-          <View style={styles.notificationOverlay}>
-            <Animated.View style={[styles.notificationBox, { opacity: fadeAnim }]}>
-              <Text style={styles.notificationText}>Report submitted</Text>
-              <TouchableOpacity onPress={() => setNotificationVisible(false)}>
-                <Text style={styles.notificationClose}>X</Text>
-              </TouchableOpacity>
-            </Animated.View>
+            {/* Photo Section */}
+            {!image ? (
+                <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+                  <Text style={styles.buttonText}>Take Photo</Text>
+                </TouchableOpacity>
+            ) : (
+                <View style={styles.photoContainer}>
+                  <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
+                    <Text style={styles.buttonText}>Your Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => setImage(null)}>
+                    <Text style={styles.deleteText}>X</Text>
+                  </TouchableOpacity>
+                  {image && <Image source={{ uri: image }} style={styles.previewImage} />}
+                </View>
+            )}
+
+            {/* Submit Button */}
+            <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  !crowdLevel && styles.disabledButton,
+                ]}
+                onPress={handleSubmit}
+                disabled={!crowdLevel}
+                activeOpacity={0.8}
+            >
+              <Text style={styles.submitText}>Submit</Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
-    </TouchableWithoutFeedback>
+
+          {notificationVisible && (
+              <View style={styles.notificationOverlay}>
+                <Animated.View style={[styles.notificationBox, { opacity: fadeAnim }]}>
+                  <Text style={styles.notificationText}>Report submitted</Text>
+                  <TouchableOpacity onPress={() => setNotificationVisible(false)}>
+                    <Text style={styles.notificationClose}>X</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+          )}
+        </View>
+      </TouchableWithoutFeedback>
   );
 }
 
@@ -215,15 +327,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  submitButton: {
-    backgroundColor: '#888',
-    padding: 15,
+  previewImage: {
+    width: 100,
+    height: 100,
+    marginLeft: 10,
     borderRadius: 10,
+  },
+  submitButton: {
+    backgroundColor: '#FF9B62',
+    padding: 15,
+    borderRadius: 12,
     marginTop: 10,
+    alignItems: 'center',
+    shadowColor: '#FF9B62',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   disabledButton: {
     backgroundColor: '#666',
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   submitText: {
     color: '#fff',
@@ -267,25 +392,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Actor',
   },
-  submitButton: {
-      backgroundColor: '#FF9B62',
-      padding: 15,
-      borderRadius: 12,
-      marginTop: 10,
-      alignItems: 'center',
-      shadowColor: '#FF9B62',
-      shadowOffset: { width: 0, height: 5 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8, // For Android shadow effect
-      transform: [{ scale: 1 }],
-    },
-    submitButtonPressed: {
-      transform: [{ scale: 0.95 }], // Slight press-down effect
-    },
-    disabledButton: {
-      backgroundColor: '#666',
-      opacity: 0.6,
-      shadowOpacity: 0, // Remove shadow when disabled
-    },
 });
