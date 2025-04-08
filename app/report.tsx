@@ -8,16 +8,15 @@ import { db } from '../config/firebaseConfig'; // Adjust path accordingly
 
 // Helper function to calculate distance between two coordinates in meters (Haversine formula)
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371000; // Radius of the earth in meters
+  const R = 6371000; // radius of the Earth in meters
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  ;
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in meters
+  const d = R * c;
   return d;
 }
 
@@ -37,6 +36,8 @@ async function uploadImageAsync(uri: string) {
   return downloadUrl;
 }
 
+// Define your Firestore "locations" collection entries are expected to have a GeoPoint "coordinates"
+// and fields "name", "crowdLevel", etc.
 export default function ReportScreen() {
   // Report input states
   const [crowdLevel, setCrowdLevel] = useState<string | null>(null);
@@ -45,13 +46,14 @@ export default function ReportScreen() {
   const [notificationVisible, setNotificationVisible] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(1)).current;
 
-  // New state: store the title based on the closest location
+  // State for the report title and the closest location object
   const [closestLocationName, setClosestLocationName] = useState<string>('Report');
+  const [closestLocation, setClosestLocation] = useState<{ id: string; name: string; coordinates: any } | null>(null);
 
-  // State to hold user's current location (for closest calculation)
+  // State for user's current location (for calculating closest location)
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObjectCoords | null>(null);
 
-  // Request user location and determine closest location from Firestore
+  // Request user location and determine the closest location from Firestore
   useEffect(() => {
     (async () => {
       // Request location permissions
@@ -63,15 +65,15 @@ export default function ReportScreen() {
       const locResult = await Location.getCurrentPositionAsync({});
       setCurrentLocation(locResult.coords);
 
-      // Inside your useEffect for fetching locations:
       try {
         const querySnapshot = await getDocs(collection(db, 'locations'));
         let closest = null;
         let minDistance = Infinity;
+        let closestObj = null;
 
         querySnapshot.docs.forEach((doc) => {
           const data = doc.data();
-          // Destructure the GeoPoint properties instead of treating coordinates as an array.
+          // Since coordinates are stored as a GeoPoint, destructure as an object
           const { latitude: lat, longitude: lon } = data.coordinates;
           if (locResult.coords && lat != null && lon != null) {
             const distance = getDistanceFromLatLonInMeters(
@@ -83,54 +85,68 @@ export default function ReportScreen() {
             if (distance < minDistance) {
               minDistance = distance;
               closest = data.name;
+              closestObj = {
+                id: doc.id,
+                name: data.name,
+                coordinates: data.coordinates,
+              };
             }
           }
         });
 
         if (closest) {
           setClosestLocationName(`Report: ${closest}`);
+          setClosestLocation(closestObj);
         } else {
           setClosestLocationName('Report');
         }
       } catch (error) {
         console.error("Error fetching locations: ", error);
       }
-
     })();
   }, []);
 
   // Handle photo capture using expo-image-picker
   const takePhoto = async () => {
+    console.log("takePhoto function called");
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    console.log("Camera permission status:", status);
     if (status !== 'granted') {
       alert('Sorry, we need camera permissions to take a picture!');
       return;
     }
-    let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-      flashMode: ImagePicker.FlashMode.off,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
+    try {
+      let result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+      console.log("Camera result:", JSON.stringify(result));
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImage(result.assets[0].uri);
+        console.log("Image URI set:", result.assets[0].uri);
+      } else {
+        console.log("User canceled the camera or no image was returned.");
+      }
+    } catch (error) {
+      console.error("Error launching camera:", error);
     }
   };
 
-  // Handle submission: upload image and create a report document in Firestore
+  // Handle submission: upload image (if any) and create a report document in Firestore
   const handleSubmit = async () => {
     try {
       let photoUrl = '';
       if (image) {
         photoUrl = await uploadImageAsync(image);
       }
+      // Create the report document, including the reported location details if available
       await addDoc(collection(db, "reports"), {
         crowdLevel,
         additionalInfo,
         photoUrl,
         timestamp: serverTimestamp(),
-        // Optionally add currentLocation, userId, locationRef, etc.
+        locationReported: closestLocation || null, // Save the entire closest location object
+        // Optionally, you can add userId if using Firebase Auth
       });
       console.log("Report submitted successfully!");
       setNotificationVisible(true);
@@ -188,7 +204,7 @@ export default function ReportScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Additional Information Input */}
+            {/* Additional Info Input */}
             <View style={styles.additionalInfoContainer}>
               <Text style={styles.subHeader}>Additional Info:</Text>
               <TextInput
