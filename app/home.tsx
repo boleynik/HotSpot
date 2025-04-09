@@ -30,7 +30,7 @@ export default function Home() {
                     borderRadius: 80,
                     backgroundColor: '#FF9B62',
                     left: '50%',
-                    transform: [{ translateX: +50 }],
+                    transform: [{ translateX: -150 }],
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.3,
