@@ -1,8 +1,39 @@
 // app/_layout.tsx
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, Slot } from 'expo-router';
+import { onAuthStateChanged, getAuth } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { app } from '@/config/firebaseConfig';
 
 export default function Layout() {
+    const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+    const router = useRouter();
+    const auth = getAuth(app);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                setIsLoggedIn(true);
+            } else {
+                setIsLoggedIn(false);
+                router.replace('/login');
+            }
+        });
+
+        return unsubscribe;
+    }, []);
+
+
+    if (isLoggedIn === null) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#FF9B62" />
+            </View>
+        );
+    }
+
+
     return (
         <Tabs
             screenOptions={({ route }) => ({
@@ -12,16 +43,16 @@ export default function Layout() {
                         case 'report':
                             iconName = focused ? 'warning' : 'warning-outline';
                             break;
-                        case 'index': // Map screen
+                        case 'index':
                             iconName = focused ? 'map' : 'map-outline';
                             break;
                         case 'favorites':
-                            iconName = focused ? 'favorites' : 'favorites-outline';
+                            iconName = focused ? 'heart' : 'heart-outline';
                             break;
                         default:
                             iconName = 'ellipse';
                     }
-                    return <Ionicons name={iconName} size={size} color={color} />;
+                    return <Ionicons name={iconName as any} size={size} color={color} />;
                 },
                 tabBarStyle: {
                     position: 'absolute',
@@ -30,20 +61,13 @@ export default function Layout() {
                     height: 60,
                     borderRadius: 80,
                     backgroundColor: '#FF9B62',
-
-                    // Center horizontally
                     left: '50%',
-                    transform: [{ translateX: +50 }],
-
-                    // Shadow
+                    transform: [{ translateX: -150 }], // center it properly
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.3,
                     shadowRadius: 4,
                     elevation: 8,
-
-                    // Text
-
                 },
                 tabBarActiveTintColor: '#111',
                 tabBarInactiveTintColor: '#555',
