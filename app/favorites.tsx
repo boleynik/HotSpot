@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-export default function FavoritesScreen() {
+export default function FavoritesScreen()     {
   const [favorites, setFavorites] = useState([]);
   const auth = getAuth();
   const user = auth.currentUser;
