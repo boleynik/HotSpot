@@ -62,7 +62,7 @@ export default function Layout() {
                     borderRadius: 80,
                     backgroundColor: '#FF9B62',
                     left: '50%',
-                    transform: [{ translateX: -150 }], // center it properly
+                    //itransform: [{ translateX: +100 }], // center it properly
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.3,
