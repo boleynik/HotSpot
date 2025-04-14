@@ -4,6 +4,7 @@ import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebaseConfig.js'; // Adjust the path to your firebase config
+import { useRouter } from 'expo-router'; // For navigation
 
 // Reanimated Bottom Sheet (Filter overlay remains as your existing code)
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -37,6 +38,9 @@ export default function MapScreen() {
     const bottomSheetRef = useRef<BottomSheet>(null);
     const snapPoints = useMemo(() => ['40%', '80%'], []);
 
+    // Router for navigation
+    const router = useRouter();
+
     // Request location permissions and update region/user location
     useEffect(() => {
         (async () => {
@@ -69,7 +73,7 @@ export default function MapScreen() {
         return () => unsubscribe();
     }, []);
 
-    // Toggle the filter overlay (your existing implementation)
+    // Toggle the filter overlay (existing implementation)
     const toggleFilter = () => {
         setShowFilter((prev) => !prev);
     };
@@ -110,8 +114,17 @@ export default function MapScreen() {
                             }}
                             pinColor={crowdColors[loc.crowdLevel] || 'gray'}
                         >
-                            <Callout>
+                            <Callout
+                                onPress={() => {
+                                    // Navigate to detailedView, passing locationId and name
+                                    router.push({
+                                        pathname: '/detailedView',
+                                        params: { locationId: loc.id, locationName: loc.name },
+                                    });
+                                }}
+                            >
                                 <Text>{loc.name}</Text>
+                                <Text style={{ color: 'blue', marginTop: 4 }}>View Details</Text>
                             </Callout>
                         </Marker>
                     ))}
@@ -181,9 +194,6 @@ const styles = StyleSheet.create({
         color: 'red',
         textAlign: 'center',
         marginTop: 20,
-    },
-    map: {
-        flex: 1,
     },
     // Filter Button Styles
     filterButton: {
