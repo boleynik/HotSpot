@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';         // <-- React Navigation
 import { db } from '../config/firebaseConfig';
 import { Modal } from 'react-native';
@@ -18,7 +18,7 @@ const PSU_REGION = {
 const { width } = Dimensions.get('window');
 const crowdColors = { 0: 'green', 1: 'yellow', 2: 'red' };
 
-// Mapping for UI display to database values
+// Mapping from UI display to database values
 const crowdLevelMapping = {
   'Not Crowded': 0,
   'Somewhat Crowded': 1,
@@ -36,6 +36,7 @@ export default function MapScreen() {
     const [crowdLevel, setCrowdLevel] = useState('');
     const [locationType, setLocationType] = useState('');
     const [activeFilters, setActiveFilters] = useState(false);
+    const mapRef = useRef(null);
 
     const clearSelections = () => {
       setCrowdLevel('');
@@ -43,7 +44,6 @@ export default function MapScreen() {
     };
 
     const applyFilters = () => {
-      // Start with all locations
       let filtered = [...allLocations];
       let filtersActive = false;
 
@@ -56,14 +56,35 @@ export default function MapScreen() {
 
       // Filter by location type if selected
       if (locationType) {
+        // Match the field name in your Firebase document
         filtered = filtered.filter(loc => loc.type === locationType);
         filtersActive = true;
       }
 
-      // Update filtered locations
+      // Set the filtered locations
       setFilteredLocations(filtered);
       setActiveFilters(filtersActive);
       setIsFilterVisible(false);
+
+      // Force map to refresh
+      if (mapRef.current) {
+        const currentRegion = mapRef.current.getInitialRegion ?
+          mapRef.current.getInitialRegion() : region;
+
+        // Slightly adjust the region to force re-render
+        const refreshRegion = {
+          ...currentRegion,
+          latitudeDelta: currentRegion.latitudeDelta * 0.999,
+          longitudeDelta: currentRegion.longitudeDelta * 0.999
+        };
+
+        setRegion(refreshRegion);
+
+        // Reset back after a short delay
+        setTimeout(() => {
+          setRegion(currentRegion);
+        }, 10);
+      }
     };
 
     // Reset filters and show all locations
@@ -100,6 +121,8 @@ export default function MapScreen() {
                     id: doc.id,
                     ...doc.data()
                 }));
+                console.log("Fetched locations:", locationData.length);
+
                 setAllLocations(locationData);
                 setFilteredLocations(locationData); // Initialize with all locations
             },
@@ -112,6 +135,11 @@ export default function MapScreen() {
         // Cleanup the subscription on unmount
         return unsub;
     }, []);
+
+    // For debugging
+    useEffect(() => {
+        console.log("Filtered locations:", filteredLocations.length);
+    }, [filteredLocations]);
 
     // Get the display string for crowd level
     const getCrowdLevelText = (level) => {
@@ -128,6 +156,7 @@ export default function MapScreen() {
             {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
             <MapView
+                ref={mapRef}
                 style={StyleSheet.absoluteFill}
                 region={region}
                 onRegionChangeComplete={setRegion}
@@ -135,10 +164,6 @@ export default function MapScreen() {
                 showsMyLocationButton
                 userInterfaceStyle="dark"
             >
-                {location && (
-                    <Marker coordinate={location} title="Your Location" />
-                )}
-
                 {filteredLocations.map(loc => (
                     <Marker
                         key={loc.id}
@@ -150,7 +175,6 @@ export default function MapScreen() {
                     >
                         <Callout
                             onPress={() => {
-                                // <-- React Navigation call
                                 navigation.navigate('DetailedView' as never, {
                                     locationId: loc.id,
                                     locationName: loc.name,
@@ -167,6 +191,13 @@ export default function MapScreen() {
                     </Marker>
                 ))}
             </MapView>
+
+            {/* Filter Counter */}
+            <View style={styles.filterCountBadge}>
+                <Text style={styles.filterCountText}>
+                    {filteredLocations.length} Locations
+                </Text>
+            </View>
 
             {/* Active Filter Indicator */}
             {activeFilters && (
