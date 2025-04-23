@@ -17,12 +17,18 @@ const PSU_REGION = {
 
 const { width } = Dimensions.get('window');
 const crowdColors = { 0: 'green', 1: 'yellow', 2: 'red' };
+const crowdLevelMap = {
+  'Not Crowded': 0,
+  'Somewhat Crowded': 1,
+  'Very Crowded': 2
+};
 
 export default function MapScreen() {
     const [location, setLocation] = useState(null);
     const [errorMsg, setErrorMsg] = useState<string|null>(null);
     const [region, setRegion] = useState(PSU_REGION);
     const [locations, setLocations] = useState<any[]>([]);
+    const [filteredLocations, setFilteredLocations] = useState<any[]>([]);
     const navigation = useNavigation();                             // <-- hook
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const [crowdLevel, setCrowdLevel] = useState('');
@@ -34,7 +40,21 @@ export default function MapScreen() {
     };
 
     const applyFilters = () => {
-      // your logic to filter markers goes here
+      let filtered = [...locations];
+
+      // Filter by crowd level if selected
+      if (crowdLevel) {
+        const crowdLevelValue = crowdLevelMap[crowdLevel];
+        filtered = filtered.filter(loc => loc.crowdLevel === crowdLevelValue);
+      }
+
+      // Filter by location type if selected
+      if (locationType) {
+        filtered = filtered.filter(loc => loc.locationType === locationType);
+      }
+
+      // Update filtered locations
+      setFilteredLocations(filtered);
       setIsFilterVisible(false);
     };
 
@@ -60,11 +80,22 @@ export default function MapScreen() {
             qs => {
                 const docs = qs.docs.map(d => ({ id: d.id, ...d.data() }));
                 setLocations(docs);
+                setFilteredLocations(docs); // Initialize filtered locations with all locations
             },
             err => console.error("Error fetching locations:", err)
         );
         return unsub;
     }, []);
+
+    // Map human-readable crowdLevel to its display label
+    const getCrowdLevelLabel = (level) => {
+      switch(level) {
+        case 0: return 'Not Crowded';
+        case 1: return 'Somewhat Crowded';
+        case 2: return 'Very Crowded';
+        default: return 'Unknown';
+      }
+    };
 
     return (
         <View style={styles.container}>
@@ -82,7 +113,7 @@ export default function MapScreen() {
                     <Marker coordinate={location} title="Your Location" />
                 )}
 
-                {locations.map(loc => (
+                {filteredLocations.map(loc => (
                     <Marker
                         key={loc.id}
                         coordinate={{
@@ -100,12 +131,35 @@ export default function MapScreen() {
                                 } as never);
                             }}
                         >
-                            <Text>{loc.name}</Text>
-                            <Text style={{ color: 'blue', marginTop: 4 }}>View Details</Text>
+                            <View style={styles.calloutContainer}>
+                                <Text style={styles.calloutTitle}>{loc.name}</Text>
+                                <Text>Crowd Level: {getCrowdLevelLabel(loc.crowdLevel)}</Text>
+                                {loc.locationType && <Text>Type: {loc.locationType}</Text>}
+                                <Text style={styles.calloutLink}>View Details</Text>
+                            </View>
                         </Callout>
                     </Marker>
                 ))}
             </MapView>
+
+            {/* Active Filter Indicator */}
+            {(crowdLevel || locationType) && (
+                <View style={styles.activeFilterIndicator}>
+                    <Text style={styles.activeFilterText}>
+                        Filters Active: {crowdLevel && `${crowdLevel}`} {crowdLevel && locationType && '•'} {locationType && `${locationType}`}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => {
+                            clearSelections();
+                            setFilteredLocations(locations);
+                        }}
+                        style={styles.clearFilterButton}
+                    >
+                        <Text style={styles.clearFilterText}>×</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <TouchableOpacity
                 style={styles.filterButton}
                 onPress={() => setIsFilterVisible(true)}
@@ -127,7 +181,7 @@ export default function MapScreen() {
                     <TouchableOpacity
                       key={level}
                       style={styles.radioOption}
-                      onPress={() => setCrowdLevel(level)}
+                      onPress={() => setCrowdLevel(level === crowdLevel ? '' : level)}
                     >
                       <View style={styles.radioCircle}>
                         {crowdLevel === level && <View style={styles.selectedCircle} />}
@@ -141,7 +195,7 @@ export default function MapScreen() {
                     <TouchableOpacity
                       key={type}
                       style={styles.radioOption}
-                      onPress={() => setLocationType(type)}
+                      onPress={() => setLocationType(type === locationType ? '' : type)}
                     >
                       <View style={styles.radioCircle}>
                         {locationType === type && <View style={styles.selectedCircle} />}
@@ -161,7 +215,6 @@ export default function MapScreen() {
                 </View>
               </View>
             </Modal>
-
         </View>
     );
 }
@@ -170,11 +223,56 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
 
+  calloutContainer: {
+    width: 150,
+    padding: 5,
+  },
+  calloutTitle: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    marginBottom: 3,
+  },
+  calloutLink: {
+    color: 'blue',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+
+  activeFilterIndicator: {
+    position: 'absolute',
+    top: 100,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeFilterText: {
+    color: 'white',
+    fontSize: 12,
+  },
+  clearFilterButton: {
+    marginLeft: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearFilterText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
   filterButton: {
     position: 'absolute',
     top: 50,
     right: 20,
-    backgroundColor: '#007AFF', // keep or change to match your theme
+    backgroundColor: '#FF9B62',
     padding: 10,
     borderRadius: 8,
     zIndex: 10,
