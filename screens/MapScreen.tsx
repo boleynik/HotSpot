@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';         // <-- React Navigation
 import { db } from '../config/firebaseConfig';
 import { Modal } from 'react-native';
@@ -17,7 +17,9 @@ const PSU_REGION = {
 
 const { width } = Dimensions.get('window');
 const crowdColors = { 0: 'green', 1: 'yellow', 2: 'red' };
-const crowdLevelMap = {
+
+// Mapping for UI display to database values
+const crowdLevelMapping = {
   'Not Crowded': 0,
   'Somewhat Crowded': 1,
   'Very Crowded': 2
@@ -27,12 +29,13 @@ export default function MapScreen() {
     const [location, setLocation] = useState(null);
     const [errorMsg, setErrorMsg] = useState<string|null>(null);
     const [region, setRegion] = useState(PSU_REGION);
-    const [locations, setLocations] = useState<any[]>([]);
+    const [allLocations, setAllLocations] = useState<any[]>([]);
     const [filteredLocations, setFilteredLocations] = useState<any[]>([]);
     const navigation = useNavigation();                             // <-- hook
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const [crowdLevel, setCrowdLevel] = useState('');
     const [locationType, setLocationType] = useState('');
+    const [activeFilters, setActiveFilters] = useState(false);
 
     const clearSelections = () => {
       setCrowdLevel('');
@@ -40,22 +43,34 @@ export default function MapScreen() {
     };
 
     const applyFilters = () => {
-      let filtered = [...locations];
+      // Start with all locations
+      let filtered = [...allLocations];
+      let filtersActive = false;
 
       // Filter by crowd level if selected
       if (crowdLevel) {
-        const crowdLevelValue = crowdLevelMap[crowdLevel];
-        filtered = filtered.filter(loc => loc.crowdLevel === crowdLevelValue);
+        const numericCrowdLevel = crowdLevelMapping[crowdLevel];
+        filtered = filtered.filter(loc => loc.crowdLevel === numericCrowdLevel);
+        filtersActive = true;
       }
 
       // Filter by location type if selected
       if (locationType) {
-        filtered = filtered.filter(loc => loc.locationType === locationType);
+        filtered = filtered.filter(loc => loc.type === locationType);
+        filtersActive = true;
       }
 
       // Update filtered locations
       setFilteredLocations(filtered);
+      setActiveFilters(filtersActive);
       setIsFilterVisible(false);
+    };
+
+    // Reset filters and show all locations
+    const resetFilters = () => {
+      clearSelections();
+      setFilteredLocations(allLocations);
+      setActiveFilters(false);
     };
 
     useEffect(() => {
@@ -76,25 +91,36 @@ export default function MapScreen() {
     }, []);
 
     useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'locations'),
-            qs => {
-                const docs = qs.docs.map(d => ({ id: d.id, ...d.data() }));
-                setLocations(docs);
-                setFilteredLocations(docs); // Initialize filtered locations with all locations
+        // Subscribe to the locations collection
+        const locationsRef = collection(db, 'locations');
+        const unsub = onSnapshot(
+            locationsRef,
+            (snapshot) => {
+                const locationData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setAllLocations(locationData);
+                setFilteredLocations(locationData); // Initialize with all locations
             },
-            err => console.error("Error fetching locations:", err)
+            (error) => {
+                console.error("Error fetching locations:", error);
+                setErrorMsg("Failed to load locations");
+            }
         );
+
+        // Cleanup the subscription on unmount
         return unsub;
     }, []);
 
-    // Map human-readable crowdLevel to its display label
-    const getCrowdLevelLabel = (level) => {
-      switch(level) {
-        case 0: return 'Not Crowded';
-        case 1: return 'Somewhat Crowded';
-        case 2: return 'Very Crowded';
-        default: return 'Unknown';
-      }
+    // Get the display string for crowd level
+    const getCrowdLevelText = (level) => {
+        switch(level) {
+            case 0: return 'Not Crowded';
+            case 1: return 'Somewhat Crowded';
+            case 2: return 'Very Crowded';
+            default: return 'Unknown';
+        }
     };
 
     return (
@@ -133,8 +159,8 @@ export default function MapScreen() {
                         >
                             <View style={styles.calloutContainer}>
                                 <Text style={styles.calloutTitle}>{loc.name}</Text>
-                                <Text>Crowd Level: {getCrowdLevelLabel(loc.crowdLevel)}</Text>
-                                {loc.locationType && <Text>Type: {loc.locationType}</Text>}
+                                <Text>Crowd Level: {getCrowdLevelText(loc.crowdLevel)}</Text>
+                                {loc.type && <Text>Type: {loc.type}</Text>}
                                 <Text style={styles.calloutLink}>View Details</Text>
                             </View>
                         </Callout>
@@ -143,16 +169,13 @@ export default function MapScreen() {
             </MapView>
 
             {/* Active Filter Indicator */}
-            {(crowdLevel || locationType) && (
+            {activeFilters && (
                 <View style={styles.activeFilterIndicator}>
                     <Text style={styles.activeFilterText}>
                         Filters Active: {crowdLevel && `${crowdLevel}`} {crowdLevel && locationType && '•'} {locationType && `${locationType}`}
                     </Text>
                     <TouchableOpacity
-                        onPress={() => {
-                            clearSelections();
-                            setFilteredLocations(locations);
-                        }}
+                        onPress={resetFilters}
                         style={styles.clearFilterButton}
                     >
                         <Text style={styles.clearFilterText}>×</Text>
@@ -218,6 +241,7 @@ export default function MapScreen() {
         </View>
     );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
