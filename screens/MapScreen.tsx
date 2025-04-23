@@ -35,7 +35,7 @@ export default function MapScreen() {
 
     const applyFilters = () => {
       // your logic to filter markers goes here
-      setShowFilter(false);
+      setIsFilterVisible(false);
     };
 
     useEffect(() => {
