@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';         // <-- React Navigation
 import { db } from '../config/firebaseConfig';
+import { Modal } from 'react-native';
 
 const PSU_REGION = {
     latitude: 40.7982,
@@ -23,6 +24,7 @@ export default function MapScreen() {
     const [region, setRegion] = useState(PSU_REGION);
     const [locations, setLocations] = useState<any[]>([]);
     const navigation = useNavigation();                             // <-- hook
+    const [isFilterVisible, setIsFilterVisible] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -92,11 +94,79 @@ export default function MapScreen() {
                     </Marker>
                 ))}
             </MapView>
+            <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setIsFilterVisible(true)}
+            >
+                <Text style={styles.filterButtonText}>Filter</Text>
+            </TouchableOpacity>
+
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={isFilterVisible}
+                onRequestClose={() => setIsFilterVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Filter Options</Text>
+                        {/* Put your filter controls here */}
+                        <TouchableOpacity onPress={() => setIsFilterVisible(false)} style={styles.closeButton}>
+                            <Text style={styles.closeButtonText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container:  { flex: 1 },
+    container: { flex: 1 },
     errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
+
+    // 🔽 Add your new styles here:
+    filterButton: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        backgroundColor: '#007AFF',
+        padding: 10,
+        borderRadius: 8,
+        zIndex: 10,
+    },
+    filterButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 20,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    closeButton: {
+        marginTop: 15,
+        backgroundColor: 'red',
+        padding: 10,
+        borderRadius: 6,
+    },
+    closeButtonText: {
+        color: 'white',
+    },
+});
+
 });
