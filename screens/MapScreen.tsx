@@ -25,6 +25,18 @@ export default function MapScreen() {
     const [locations, setLocations] = useState<any[]>([]);
     const navigation = useNavigation();                             // <-- hook
     const [isFilterVisible, setIsFilterVisible] = useState(false);
+    const [crowdLevel, setCrowdLevel] = useState('');
+    const [locationType, setLocationType] = useState('');
+
+    const clearSelections = () => {
+      setCrowdLevel('');
+      setLocationType('');
+    };
+
+    const applyFilters = () => {
+      // your logic to filter markers goes here
+      setShowFilter(false);
+    };
 
     useEffect(() => {
         (async () => {
@@ -102,20 +114,52 @@ export default function MapScreen() {
             </TouchableOpacity>
 
             <Modal
-                animationType="slide"
-                transparent={true}
-                visible={isFilterVisible}
-                onRequestClose={() => setIsFilterVisible(false)}
+              visible={showFilter}
+              transparent={true}
+              animationType="slide"
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Filter Options</Text>
-                        {/* Put your filter controls here */}
-                        <TouchableOpacity onPress={() => setIsFilterVisible(false)} style={styles.closeButton}>
-                            <Text style={styles.closeButtonText}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Filter Menu</Text>
+
+                  <Text style={styles.sectionTitle}>Crowd Level</Text>
+                  {['Not Crowded', 'Somewhat Crowded', 'Very Crowded'].map(level => (
+                    <TouchableOpacity
+                      key={level}
+                      style={styles.radioOption}
+                      onPress={() => setCrowdLevel(level)}
+                    >
+                      <View style={styles.radioCircle}>
+                        {crowdLevel === level && <View style={styles.selectedCircle} />}
+                      </View>
+                      <Text style={styles.radioLabel}>{level}</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                  <Text style={styles.sectionTitle}>Location Type</Text>
+                  {['Gym Space', 'Study Space', 'Dining Space'].map(type => (
+                    <TouchableOpacity
+                      key={type}
+                      style={styles.radioOption}
+                      onPress={() => setLocationType(type)}
+                    >
+                      <View style={styles.radioCircle}>
+                        {locationType === type && <View style={styles.selectedCircle} />}
+                      </View>
+                      <Text style={styles.radioLabel}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity style={styles.unselectButton} onPress={clearSelections}>
+                      <Text style={styles.buttonText}>Un-select All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
+                      <Text style={styles.buttonText}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              </View>
             </Modal>
 
         </View>
@@ -123,50 +167,100 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
+  container: { flex: 1 },
+  errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
 
-    // 🔽 Add your new styles here:
-    filterButton: {
-        position: 'absolute',
-        top: 50,
-        right: 20,
-        backgroundColor: '#007AFF',
-        padding: 10,
-        borderRadius: 8,
-        zIndex: 10,
-    },
-    filterButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        width: '80%',
-        backgroundColor: 'white',
-        borderRadius: 10,
-        padding: 20,
-        alignItems: 'center',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
-    closeButton: {
-        marginTop: 15,
-        backgroundColor: 'red',
-        padding: 10,
-        borderRadius: 6,
-    },
-    closeButtonText: {
-        color: 'white',
-    },
-});
+  filterButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: '#007AFF', // keep or change to match your theme
+    padding: 10,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  filterButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
 
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  modalContent: {
+    marginTop: 60,
+    marginLeft: 20,
+    width: '80%',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  radioCircle: {
+    height: 20,
+    width: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'orange',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  selectedCircle: {
+    height: 10,
+    width: 10,
+    borderRadius: 5,
+    backgroundColor: 'orange',
+  },
+  radioLabel: {
+    color: 'white',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  unselectButton: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: '#333',
+    padding: 10,
+    borderRadius: 8,
+  },
+  applyButton: {
+    flex: 1,
+    marginLeft: 10,
+    backgroundColor: 'orange',
+    padding: 10,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
 });
