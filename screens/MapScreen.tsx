@@ -114,7 +114,7 @@ export default function MapScreen() {
             </TouchableOpacity>
 
             <Modal
-              visible={showFilter}
+              visible={isFilterVisible}
               transparent={true}
               animationType="slide"
             >
